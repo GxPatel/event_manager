@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 class UserService:
     @classmethod
     async def _execute_query(cls, session: AsyncSession, query):
+
         try:
             result = await session.execute(query)
             await session.commit()
@@ -29,7 +30,7 @@ class UserService:
         except SQLAlchemyError as e:
             logger.error(f"Database error: {e}")
             await session.rollback()
-            return None
+            raise  # Re-raise the exception for further handling
 
     @classmethod
     async def _fetch_user(cls, session: AsyncSession, **filters) -> Optional[User]:
