@@ -169,10 +169,16 @@ class UserService:
         user = await cls.get_by_id(session, user_id)
         if user:
             user.hashed_password = hashed_password
-            user.failed_login_attempts = 0  # Resetting failed login attempts
-            user.is_locked = False  # Unlocking the user account, if locked
+            user.failed_login_attempts = 0
+            user.is_locked = False
             session.add(user)
             await session.commit()
+            
+            # Notify user about password reset
+            try:
+                await email_service.send_password_reset_confirmation(user)
+            except Exception as e:
+                logger.error(f"Failed to send password reset email: {e}")
             return True
         return False
 
