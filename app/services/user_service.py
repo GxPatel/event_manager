@@ -52,26 +52,45 @@ class UserService:
     @classmethod
     async def create(cls, session: AsyncSession, user_data: Dict[str, str], email_service: EmailService) -> Optional[User]:
         try:
+            # Validate and preprocess user data
             validated_data = UserCreate(**user_data).model_dump()
             existing_user = await cls.get_by_email(session, validated_data['email'])
             if existing_user:
                 logger.error("User with given email already exists.")
                 return None
+
+            # Hash password and prepare user object
             validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
             new_user = User(**validated_data)
             new_user.verification_token = generate_verification_token()
+
+            # Generate unique nickname
             new_nickname = generate_nickname()
             while await cls.get_by_nickname(session, new_nickname):
                 new_nickname = generate_nickname()
             new_user.nickname = new_nickname
+
+            # Save user to database
             session.add(new_user)
             await session.commit()
-            await email_service.send_verification_email(new_user)
-            
+
+            # Send verification email after successful commit
+            try:
+                await email_service.send_verification_email(new_user)
+            except Exception as email_error:
+                logger.error(f"Failed to send verification email: {email_error}")
+                # Optionally, mark email as unsent or handle as needed
+                return new_user  # Return user even if email fails to send
+
             return new_user
-        except ValidationError as e:
-            logger.error(f"Validation error during user creation: {e}")
+        except ValidationError as validation_error:
+            logger.error(f"Validation error during user creation: {validation_error}")
             return None
+        except SQLAlchemyError as db_error:
+            logger.error(f"Database error during user creation: {db_error}")
+            await session.rollback()
+            return None
+
 
     @classmethod
     async def update(cls, session: AsyncSession, user_id: UUID, update_data: Dict[str, str]) -> Optional[User]:
