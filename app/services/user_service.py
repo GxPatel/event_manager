@@ -117,11 +117,13 @@ class UserService:
 
     @classmethod
     async def delete(cls, session: AsyncSession, user_id: UUID) -> bool:
+
         user = await cls.get_by_id(session, user_id)
         if not user:
             logger.info(f"User with ID {user_id} not found.")
             return False
-        await session.delete(user)
+        user.is_deleted = True  # Mark as deleted
+        session.add(user)
         await session.commit()
         return True
 
